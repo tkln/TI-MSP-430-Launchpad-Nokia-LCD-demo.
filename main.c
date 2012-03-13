@@ -29,58 +29,60 @@ inline void lcd_move_cursor(uint8_t x, uint8_t y);
 inline void lcd_render_char(char c);
 inline void lcd_print_int(uint16_t val);
 
+inline void temp_sensor_init(void);
+
+inline void io_init(void);
+
 int putchar(int c);
 
 uint8_t h, m;
 
 int main(void){
+	io_init();
+	spi_init();
+	lcd_init();
+	temp_sensor_init();
+	
+	lcd_clear();
+	
+	lcd_move_cursor(7, 2);	
+	
+	printf("hello world");
+	
+	//IE1_; //interrupt enable 
+//	LPM0;
+
+	
+	return 0;
+}
+
+inline void io_init(void){
 	WDTCTL = WDTPW + WDTHOLD;
 	P1DIR |= BIT5 | BIT6 | BIT7; //RST, D/C, ENABLE
  	P1DIR |= BIT0;	
 	
 	P1OUT &= ~BIT0;
 	P1OUT &= ~BIT6;
+}
 
-	spi_init();
-	lcd_init();
-
+inline void temp_sensor_init(void){
 	ADC10CTL1 = INCH_10 | ADC10DIV_3; // temp sensor
 	ADC10CTL0 = SREF_1 | ADC10SHT_3 | REFON | ADC10ON | ADC10IE;
-	
-//	printf("hello");
-	
-	IE1_;
-//	LPM0;
-
-//	_BIS_SR(LPM0_bits + GIE); //not low power mode and enable interrupts
-	uint8_t i;
-	
-	lcd_clear();
-	for(i=0; i < 10; i++){
-		putchar('a'+i);
-
-	}
-
-	while(0){
-		lcd_clear();
-
-		lcd_move_cursor(32, 3);
-		// really need to rethink the formula
-		lcd_print_int(( ((((ADC10MEM -128) & 0xff)) * 23) / 40 ) - 45 )  ;
-		ADC10CTL0 |= ENC | ADC10SC;
-		delay(100);
-	}
-	return 0;
 }
 
 int putchar(int c){
+	/* the font is incomplete so all workarounds are implemented here */
 	if(c >= '0' && c <= '9'){
-		c = c - '0';//numes
+		c = c - '0';
 	}
 	else if(c >= 'a'){
-		c = c - '0' + 10;
+		c = c - '0' - 10;
+	}
+	if(c == ' '){
+		c=0; 
 	}
 	lcd_render_char(c);
+	return 0;
 }
 
 //interrupt (TIMERA0_VECTOR) IntServiceRoutine(void){

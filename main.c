@@ -35,7 +35,9 @@ inline void io_init(void);
 
 int putchar(int c);
 
-uint8_t h, m;
+inline void render_time(void);
+
+volatile uint8_t h, m, s;
 
 int main(void){
 	io_init();
@@ -43,23 +45,23 @@ int main(void){
 	lcd_init();
 	temp_sensor_init();
 
-	TA0CTL = TASSEL1 + TACLR;              // SMCLK, clear TAR
-	TA0CCTL0 = CCIE;                         // CCR0 interrupt enabled
-	TA0CTL |= MC_2;                         // Start Timer_A in continuous mode
+	h = m = s = 0;
 
-	TA0CCR0 = 1000;
+	TA0CTL = TASSEL0 + TACLR;              // TA0CLK (ext xtal), reset timer
+	TA0CCTL0 = CCIE;                         // CCR0 interrupt enabled
+	TA0CTL |= MC_1;                         // Start Timer_A in up mode (counts to TACCR0 and resets to 0)
+
+	// TACCR0 = 1 => f = 8.189kHz
+	TA0CCR0 = 32768;
 	
 
 	IE2 = 0xff;
 	IE1 = 0xff;
 
-	__bis_SR_register( LPM0_bits +  GIE);        // enter LPM0 with interrrupt enable
-	
-
-
-
-
 	lcd_clear();
+
+	__bis_SR_register( LPM3_bits +  GIE);        // enter LPM0 with interrrupt enable
+	
 	
 	lcd_move_cursor(7, 2);	
 	
@@ -85,7 +87,7 @@ inline void temp_sensor_init(void){
 int putchar(int c){
 	/* the font is incomplete so all workarounds are implemented here */
 	if(c >= '0' && c <= '9'){
-		c = c - '0';
+		c = c - '0' +1;
 	}
 	else if(c >= 'a'){
 		c = c - '0' - 10;
@@ -97,8 +99,31 @@ int putchar(int c){
 	return 0;
 }
 
+inline void render_time(void){
+	lcd_clear();
+	lcd_move_cursor(7, 2);	
+	printf("time: %d:%d:%d", h,m,s);
+}
+
 //interrupt (TIMERA0_VECTOR) IntServiceRoutine(void){
 __attribute__((interrupt(TIMER0_A0_VECTOR))) void timer_isr(void){
+	//executed at 1Hz
+	if(s < 59){
+		s = s + 1;
+	}
+	else{
+		s = 0;
+		m++;
+		
+	}
+	if(m >= 60){
+		m = 0;
+		h++;
+	}
+	if(h >= 24){
+		h = 0;
+	}
+	render_time();
 	P1OUT ^= BIT0;
 //	TACCR0 += 50;
 }

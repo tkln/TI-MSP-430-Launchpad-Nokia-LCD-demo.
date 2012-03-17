@@ -42,16 +42,28 @@ int main(void){
 	spi_init();
 	lcd_init();
 	temp_sensor_init();
+
+	TA0CTL = TASSEL1 + TACLR;              // SMCLK, clear TAR
+	TA0CCTL0 = CCIE;                         // CCR0 interrupt enabled
+	TA0CTL |= MC_2;                         // Start Timer_A in continuous mode
+
+	TA0CCR0 = 1000;
 	
+
+	IE2 = 0xff;
+	IE1 = 0xff;
+
+	__bis_SR_register( LPM0_bits +  GIE);        // enter LPM0 with interrrupt enable
+	
+
+
+
+
 	lcd_clear();
 	
 	lcd_move_cursor(7, 2);	
 	
 	printf("hello world");
-	
-	//IE1_; //interrupt enable 
-//	LPM0;
-
 	
 	return 0;
 }
@@ -86,9 +98,9 @@ int putchar(int c){
 }
 
 //interrupt (TIMERA0_VECTOR) IntServiceRoutine(void){
-__attribute__((interrupt(TIMER0_A1_VECTOR))) void timer_isr(void){
+__attribute__((interrupt(TIMER0_A0_VECTOR))) void timer_isr(void){
 	P1OUT ^= BIT0;
-	CCR0 += 50;
+//	TACCR0 += 50;
 }
 
 inline void lcd_print_int(uint16_t val){

@@ -38,36 +38,48 @@ int putchar(int c);
 inline void render_time(void);
 
 volatile uint8_t h, m, s;
+volatile uint32_t uptime;
+
+int16_t temp_sensor_get_temp(void);
+
+inline void timer_init(void);
 
 int main(void){
 	io_init();
 	spi_init();
 	lcd_init();
 	temp_sensor_init();
+	timer_init();
 
 	h = m = s = 0;
+	uptime = 0;
 
-	TA0CTL = TASSEL0 + TACLR;              // TA0CLK (ext xtal), reset timer
-	TA0CCTL0 = CCIE;                         // CCR0 interrupt enabled
-	TA0CTL |= MC_1;                         // Start Timer_A in up mode (counts to TACCR0 and resets to 0)
+	render_time();
 
-	// TACCR0 = 1 => f = 8.189kHz
-	TA0CCR0 = 32768;
-	
+
+
 
 	IE2 = 0xff;
 	IE1 = 0xff;
 
-	lcd_clear();
-
 	__bis_SR_register( LPM3_bits +  GIE);        // enter LPM0 with interrrupt enable
 	
-	
-	lcd_move_cursor(7, 2);	
-	
-	printf("hello world");
-	
 	return 0;
+}
+
+inline void timer_init(){
+	TA0CTL = TASSEL0 + TACLR;              // TA0CLK (ext xtal), reset timer
+	TA0CCTL0 = CCIE;                         // CCR0 interrupt enabled
+	TA0CTL |= MC_1;                         // Start Timer_A in up mode (counts to TACCR0 and resets to 0)
+	// f = 1Hz
+	TA0CCR0 = 32768;
+//	TA0CCR0 =100;
+	
+}
+
+int16_t temp_sensor_get_temp(){
+//	int32_t temp = ADC10MEM;	
+//	return ADC10MEM;
 }
 
 inline void io_init(void){
@@ -80,8 +92,8 @@ inline void io_init(void){
 }
 
 inline void temp_sensor_init(void){
-	ADC10CTL1 = INCH_10 | ADC10DIV_3; // temp sensor
-	ADC10CTL0 = SREF_1 | ADC10SHT_3 | REFON | ADC10ON | ADC10IE;
+	ADC10CTL1 = INCH_10 | ADC10DIV_3; // temp sensor, clock div 3
+	ADC10CTL0 = SREF_1 | ADC10SHT_3 | REFON | ADC10ON | ADC10IE; //
 }
 
 int putchar(int c){
@@ -89,8 +101,14 @@ int putchar(int c){
 	if(c >= '0' && c <= '9'){
 		c = c - '0' +1;
 	}
+	else if(c >= 'A' && c < 'a'){
+		c = c - '0' - 1;
+	}
 	else if(c >= 'a'){
-		c = c - '0' - 10;
+		c = c - '0' - 8;
+	}
+	else if(c > '9'){
+		c = c - '0' + 1 ;
 	}
 	if(c == ' '){
 		c=0; 
@@ -100,9 +118,23 @@ int putchar(int c){
 }
 
 inline void render_time(void){
+	ADC10CTL0 |= ENC + ADC10SC;
 	lcd_clear();
-	lcd_move_cursor(7, 2);	
-	printf("time: %d:%d:%d", h,m,s);
+
+	lcd_move_cursor(27, 0);	
+	printf("%02d:%02d", h,m);
+
+	lcd_move_cursor(0,1);
+	printf("temp: %d",  (((ADC10MEM - 673) * 423) / 1024) - 11);
+
+	ADC10CTL1 = INCH_11 | ADC10DIV_3; //bat mon, clk div 3
+	ADC10CTL0 |= ENC + ADC10SC; //sample
+	lcd_move_cursor(0,2);
+	printf("Vbat: %d", ADC10MEM);
+
+	lcd_move_cursor(0,3);
+	printf("uptime: %d", uptime);
+
 }
 
 //interrupt (TIMERA0_VECTOR) IntServiceRoutine(void){
@@ -114,7 +146,8 @@ __attribute__((interrupt(TIMER0_A0_VECTOR))) void timer_isr(void){
 	else{
 		s = 0;
 		m++;
-		
+		uptime++;
+		render_time();
 	}
 	if(m >= 60){
 		m = 0;
@@ -123,8 +156,7 @@ __attribute__((interrupt(TIMER0_A0_VECTOR))) void timer_isr(void){
 	if(h >= 24){
 		h = 0;
 	}
-	render_time();
-	P1OUT ^= BIT0;
+//	P1OUT ^= BIT0;
 //	TACCR0 += 50;
 }
 
